@@ -17,10 +17,10 @@ const registerUser = asyncHandler(async (req, res) => {
     // send response
 
     const { fullName, email, username, password } = req.body;
-    console.log("fullname: ", fullName);
-    console.log("email: ", email);
-    console.log("username: ", username);
-    console.log("password: ", password);
+    // console.log("fullname: ", fullName);
+    // console.log("email: ", email);
+    // console.log("username: ", username);
+    // console.log("password: ", password);
 
     if ([fullName, email, username, password].some((field) => field?.trim() === "")) {
         throw new ApiError(400, "All fields are required");
@@ -107,7 +107,7 @@ const loginUser = asyncHandler(async (req, res) => {
         throw new ApiError(400, "email or username is required");
     }
 
-    const user = User.findOne({
+    const user = await User.findOne({
         $or: [{username}, {email}],
     });
 
@@ -134,7 +134,7 @@ const loginUser = asyncHandler(async (req, res) => {
     // for cookies, specifies only server can modify these cookie, (secure cookies)
     const options = {
         httpOnly: true,
-        secure: true,
+        secure: false,
     };
 
     return res.status(200)
@@ -151,7 +151,35 @@ const loginUser = asyncHandler(async (req, res) => {
             "user logged in successfully"
         )
     );
+});
 
-})
+const logoutUser = asyncHandler(async (req, res) => {
+    try {
+        const loggedOutUser = await User.findByIdAndUpdate(
+            req?.user?._id,
+            {
+                $set: {
+                    refreshToken: undefined,
+                }
+            },
+            {
+                new: true,
+            }
+        );
+        console.log("Logged out user:: ", loggedOutUser);
 
-export { registerUser };
+        const options = {
+            httpOnly: true,
+            secure: true,
+        }
+
+        return res.status(200).clearCookie("accessToken", options).clearCookie("refreshToken", options).json(
+            new ApiResponse(200, {}, "user logged out")
+        );
+    } catch (error) {
+        throw new ApiError(500, error?.message);
+    }
+});
+
+
+export { registerUser, loginUser, logoutUser };
