@@ -76,4 +76,82 @@ const registerUser = asyncHandler(async (req, res) => {
 
 });
 
+const generateAccessAndRefreshToken = async (user_id) => {
+    try {
+        const userInstance = await User.findById(user_id);
+        const accessToken = await userInstance.generateAccessToken();
+        const refreshToken = await userInstance.generateRefreshToken();
+
+        userInstance.refreshToken = refreshToken;
+        await userInstance.save({ validateBeforeSave: false }); // because if its true it will demand password
+
+        return { accessToken, refreshToken };
+
+    } catch (error) {
+        throw new ApiError(500, "Something went wrong while generating refresh and access tokens");
+    }
+}
+
+const loginUser = asyncHandler(async (req, res) => {
+    // req body -> data
+    // username, email, password
+    // validate info
+    // check by username or value
+    // bcrypt decrypt password, match if valid, continue
+    // return res, generate refreshToken and send accessToken
+
+    const { username, email, password } = req.body;
+
+    // check
+    if(!username && !email) {
+        throw new ApiError(400, "email or username is required");
+    }
+
+    const user = User.findOne({
+        $or: [{username}, {email}],
+    });
+
+    if(!user) {
+        throw new ApiError(404, "user does not exist");
+    }
+
+    // user will have the custom methods access not User 
+
+    const isPasswordValid = await user.isPasswordCorrect(password);
+
+    if(!isPasswordValid) {
+        throw new ApiError(401, "invalid credentials");
+    }
+
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
+
+    const updatedUser = await User.findById(user._id).select("-password -refreshToken");
+
+    if(!updatedUser) {
+        throw new ApiError(500);
+    }
+
+    // for cookies, specifies only server can modify these cookie, (secure cookies)
+    const options = {
+        httpOnly: true,
+        secure: true,
+    };
+
+    return res.status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                user: updatedUser,
+                accessToken,
+                refreshToken,
+            },
+            "user logged in successfully"
+        )
+    );
+
+})
+
 export { registerUser };
