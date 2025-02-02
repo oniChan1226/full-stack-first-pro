@@ -12,6 +12,6 @@ class ApiError extends Error {
         this.message = message;
         this.errors = errors;
     }
-}
+}   
 
 export { ApiError };
